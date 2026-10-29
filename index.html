@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>월세 연체 해지 계산기</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+*{box-sizing:border-box}body{margin:0}
+
+/* Layout: 한 장짜리 임대 장부 — 위에 입력, 아래에 판정 도장과 납기일 장부 */
+:root{
+  --bg:#f5f6f4; --paper:#ffffff; --ink:#1d2622; --muted:#5d6a64; --line:#d9dfdb;
+  --accent:#1f5f4a; --accent-soft:#e3efe9;
+  --bad:#b3261e; --bad-soft:#fbe9e7; --warn:#8a5a00; --warn-soft:#fff3d6; --ok:#1f6b3a; --ok-soft:#e5f4ea;
+  --f-display:"Gowun Batang","Nanum Myeongjo",serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121815; --paper:#1a221e; --ink:#e6ece9; --muted:#9aa8a1; --line:#2d3833;
+  --accent:#7cc4a6; --accent-soft:#1f3229;
+  --bad:#ff8a80; --bad-soft:#3a1d1b; --warn:#f2c46b; --warn-soft:#352a12; --ok:#8fd6a5; --ok-soft:#18301f;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121815; --paper:#1a221e; --ink:#e6ece9; --muted:#9aa8a1; --line:#2d3833;
+  --accent:#7cc4a6; --accent-soft:#1f3229;
+  --bad:#ff8a80; --bad-soft:#3a1d1b; --warn:#f2c46b; --warn-soft:#352a12; --ok:#8fd6a5; --ok-soft:#18301f;
+  color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
+h1{font-family:var(--f-display);font-size:1.9rem;line-height:1.25;margin:0;text-wrap:balance}
+h2{font-size:1rem;margin:0;font-weight:600}
+.lead{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);font-weight:500}
+input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;box-sizing:border-box;font-variant-numeric:tabular-nums}
+input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg{display:flex;gap:6px}
+.seg button{flex:1}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:8px 12px}
+button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--paper);font-weight:600}
+.btn-add{justify-self:start;border-style:dashed}
+.hint{font-size:.8rem;color:var(--muted);margin:0}
+.scroll{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.9rem}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--muted);font-weight:500;font-size:.8rem}
+th:first-child,td:first-child{text-align:left}
+#pays td input{padding:6px 8px}
+#pays td:last-child{width:1%}
+.del{padding:4px 9px;color:var(--muted)}
+tr.hit td{background:var(--bad-soft)}
+.verdict{border-radius:10px;padding:16px 18px;display:grid;gap:4px;border:1px solid}
+.verdict.bad{background:var(--bad-soft);border-color:var(--bad);color:var(--ink)}
+.verdict.ok{background:var(--ok-soft);border-color:var(--ok)}
+.verdict strong{font-family:var(--f-display);font-size:1.25rem}
+.verdict.bad strong{color:var(--bad)} .verdict.ok strong{color:var(--ok)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat{display:grid;gap:2px}
+.stat span{font-size:.8rem;color:var(--muted)}
+.stat b{font-size:1.35rem;font-variant-numeric:tabular-nums}
+.note{background:var(--warn-soft);border-left:3px solid var(--warn);padding:10px 12px;border-radius:4px;font-size:.9rem}
+.tag{display:inline-block;font-size:.72rem;letter-spacing:.04em;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-weight:600}
+.pill{font-size:.75rem;padding:1px 7px;border-radius:999px;background:var(--bad);color:var(--paper);font-weight:600}
+footer{font-size:.8rem;color:var(--muted);display:grid;gap:4px}
+@media (prefers-reduced-motion:no-preference){.verdict{transition:background .2s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>월세 연체 해지 계산기</h1>
+    <p class="lead">입금 내역을 넣으면 납기일마다 밀린 차임을 합산해, 해지 기준(주택 2기·상가 3기)에 닿는 날을 알려 줍니다. 연속으로 밀렸는지가 아니라 밀린 금액의 합계로 봅니다.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="h-in">
+    <h2 id="h-in">계약 정보 <span class="tag">예시 값</span></h2>
+    <div class="grid">
+      <div class="stat" style="gap:4px"><span>건물 종류</span>
+        <div class="seg" role="group" aria-label="건물 종류">
+          <button type="button" id="k-house" aria-pressed="true">주택 (2기)</button>
+          <button type="button" id="k-shop" aria-pressed="false">상가 (3기)</button>
+        </div>
+      </div>
+      <label for="rent">월 차임 (관리비 제외, 원)<input id="rent" type="number" min="0" step="10000" value="500000"></label>
+      <label for="start">첫 납기일<input id="start" type="date" value="2026-01-05"></label>
+      <label for="base">조회 기준일<input id="base" type="date"></label>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-pay">
+    <h2 id="h-pay">입금 내역 <span class="tag">예시 값</span></h2>
+    <p class="hint">관리비를 함께 보냈다면 '그중 관리비'에 적으세요. 관리비는 차임이 아니라서 계산에서 뺍니다.</p>
+    <div class="scroll">
+      <table id="pays">
+        <thead><tr><th>입금일</th><th>입금액(원)</th><th>그중 관리비(원)</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <button type="button" class="btn-add" id="add">+ 입금 추가</button>
+  </section>
+
+  <section class="panel" aria-labelledby="h-out" aria-live="polite">
+    <h2 id="h-out">판정</h2>
+    <div id="verdict" class="verdict"></div>
+    <div class="stats">
+      <div class="stat"><span>기준일 현재 연체액</span><b id="s-cur"></b></div>
+      <div class="stat"><span>연체 기수</span><b id="s-n"></b></div>
+      <div class="stat"><span id="s-th-l">해지 기준</span><b id="s-th"></b></div>
+    </div>
+    <div id="first" class="note" hidden></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-led">
+    <h2 id="h-led">납기일별 장부</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>납기일</th><th>누적 차임</th><th>누적 입금(차임분)</th><th>연체액</th><th>연체 기수</th><th>기준 도달</th></tr></thead>
+        <tbody id="ledger"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div>근거: 민법 제640조(주택 등 건물 2기) · 상가건물 임대차보호법 제10조의8(상가 3기) · 연체액 합산(대법원 2012다28486) · 보증금이 있어도 차임 지급 거절 불가(대법원 2016다211309).</div>
+    <div>해지 통보 전에 연체액이 기준 아래로 줄면 해지가 어려울 수 있습니다. 이 계산기는 정보 제공용이며 법률 자문이 아닙니다.</div>
+    <div>제공: 계양공인중개사사무소 · 홍익종합관리</div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var kind = "house";
+  var $ = function(id){ return document.getElementById(id); };
+  var won = function(n){ return Math.round(n).toLocaleString("ko-KR") + "원"; };
+  var pad = function(n){ return (n < 10 ? "0" : "") + n; };
+  var iso = function(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); };
+  var parse = function(s){ if(!s) return null; var p = s.split("-").map(Number); return new Date(p[0], p[1]-1, p[2]); };
+
+  function addMonth(d, k, day){
+    var y = d.getFullYear() + Math.floor((d.getMonth() + k) / 12);
+    var m = (d.getMonth() + k) % 12;
+    var last = new Date(y, m + 1, 0).getDate();
+    return new Date(y, m, Math.min(day, last));
+  }
+
+  var samples = [["2026-01-05",500000,0],["2026-03-20",200000,0]];
+  function addRow(v){
+    v = v || ["", "", 0];
+    var tr = document.createElement("tr");
+    var i = $("pays").tBodies[0].rows.length;
+    tr.innerHTML = '<td><input type="date" id="pd'+i+'" aria-label="입금일" value="'+v[0]+'"></td>'+
+      '<td><input type="number" id="pa'+i+'" aria-label="입금액" min="0" step="10000" value="'+v[1]+'"></td>'+
+      '<td><input type="number" id="pm'+i+'" aria-label="그중 관리비" min="0" step="10000" value="'+v[2]+'"></td>'+
+      '<td><button type="button" class="del" aria-label="이 입금 삭제">삭제</button></td>';
+    tr.querySelector(".del").addEventListener("click", function(){ tr.remove(); calc(); });
+    tr.addEventListener("input", calc);
+    $("pays").tBodies[0].appendChild(tr);
+  }
+
+  function calc(){
+    var n = kind === "house" ? 2 : 3;
+    var rent = Number($("rent").value) || 0;
+    var start = parse($("start").value), base = parse($("base").value);
+    var pays = [];
+    Array.prototype.forEach.call($("pays").tBodies[0].rows, function(tr){
+      var ins = tr.querySelectorAll("input");
+      var d = parse(ins[0].value); if(d === null) return;
+      var amt = Math.max((Number(ins[1].value)||0) - (Number(ins[2].value)||0), 0);
+      pays.push([d, amt]);
+    });
+    var led = $("ledger"); led.innerHTML = "";
+    $("s-th-l").textContent = "해지 기준 (" + n + "기)";
+    if(rent <= 0 || start === null || base === null || start > base){
+      $("verdict").className = "verdict ok";
+      $("verdict").innerHTML = "<strong>입력을 확인하세요</strong><span>월 차임과, 조회 기준일 이전의 첫 납기일을 넣어 주세요.</span>";
+      $("s-cur").textContent = "-"; $("s-n").textContent = "-"; $("s-th").textContent = "-"; $("first").hidden = true;
+      return;
+    }
+    var dues = [];
+    for(var k = 0; k < 600; k++){ var d = addMonth(start, k, start.getDate()); if(d > base) break; dues.push(d); }
+    var th = n * rent, firstHit = null;
+    dues.forEach(function(d, i){
+      var dueTotal = (i + 1) * rent;
+      var paid = pays.reduce(function(s, p){ return p[0] <= d ? s + p[1] : s; }, 0);
+      var arr = Math.max(dueTotal - paid, 0);
+      var over = arr >= th;
+      if(over && firstHit === null){ firstHit = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1); }
+      var tr = document.createElement("tr");
+      if(over) tr.className = "hit";
+      tr.innerHTML = "<td>"+iso(d)+"</td><td>"+won(dueTotal)+"</td><td>"+won(paid)+"</td><td>"+won(arr)+"</td><td>"+(arr/rent).toFixed(2)+"기</td><td>"+(over ? '<span class="pill">'+n+'기 도달</span>' : "")+"</td>";
+      led.appendChild(tr);
+    });
+    var paidNow = pays.reduce(function(s, p){ return p[0] <= base ? s + p[1] : s; }, 0);
+    var cur = Math.max(dues.length * rent - paidNow, 0);
+    $("s-cur").textContent = won(cur);
+    $("s-n").textContent = (cur / rent).toFixed(2) + "기";
+    $("s-th").textContent = won(th);
+    var v = $("verdict");
+    if(cur >= th){
+      v.className = "verdict bad";
+      v.innerHTML = "<strong>해지 통보 가능</strong><span>기준일 현재 연체액이 " + n + "기 이상입니다. 내용증명으로 해지 의사를 보내고 도달 증빙을 남기세요.</span>";
+    } else {
+      v.className = "verdict ok";
+      v.innerHTML = "<strong>아직 " + n + "기 미만</strong><span>" + won(th - cur) + " 더 밀리면 " + n + "기에 닿습니다.</span>";
+    }
+    var law = kind === "house" ? "주택임대차보호법 제6조③·제6조의3①1호" : "상가건물 임대차보호법 제10조①1호";
+    if(firstHit){
+      $("first").hidden = false;
+      $("first").textContent = "처음 " + n + "기에 닿은 날: " + iso(firstHit) + " (납기일 다음 날). 계약 기간 중 이런 연체 사실이 있으면 갱신 거절 사유가 될 수 있습니다 — " + law + ".";
+    } else { $("first").hidden = true; }
+  }
+
+  function setKind(k){
+    kind = k;
+    $("k-house").setAttribute("aria-pressed", k === "house" ? "true" : "false");
+    $("k-shop").setAttribute("aria-pressed", k === "shop" ? "true" : "false");
+    calc();
+  }
+  $("k-house").addEventListener("click", function(){ setKind("house"); });
+  $("k-shop").addEventListener("click", function(){ setKind("shop"); });
+  $("add").addEventListener("click", function(){ addRow(); });
+  ["rent","start","base"].forEach(function(id){ $(id).addEventListener("input", calc); });
+  $("base").value = iso(new Date());
+  samples.forEach(addRow);
+  calc();
+})();
+</script>
+</body>
+</html>
